@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1, user-scalable=no" />
+  <title>펜싱 랜덤 드릴</title>
+  <style>
+    :root{ --bg:#f6f6f6; --fg:#111; --muted:#666; --card:#fff; }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial,sans-serif;
+      background:var(--bg); color:var(--fg);
+      display:flex; justify-content:center; padding:16px;
+      touch-action: manipulation;
+    }
+    .app{
+      width:min(760px,100%);
+      background:var(--card);
+      border-radius:16px;
+      padding:16px;
+      box-shadow:0 8px 30px rgba(0,0,0,.08);
+    }
+    h1{ margin:0 0 10px; font-size:18px; }
+    .panel{
+      border:1px solid #eee; background:#fafafa;
+      border-radius:14px; padding:12px;
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .badge{
+      display:inline-flex; gap:8px; align-items:center;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid #eee; background:#fff;
+      font-size:13px; font-weight:700; color:var(--muted);
+    }
+    .k{ color:#111; }
+    button{
+      border:0; cursor:pointer; border-radius:12px;
+      padding:12px 16px; font-weight:900; font-size:15px;
+      background:#111; color:#fff;
+      touch-action: manipulation;
+    }
+    button.secondary{ background:#e9e9e9; color:#111; }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+
+    .controls{ margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; }
+    .sub{ font-size:13px; color:var(--muted); font-weight:650; margin-top:8px; }
+
+    .stage{
+      margin-top:12px;
+      height:360px;
+      border-radius:18px;
+      border:1px solid #eee;
+      background:linear-gradient(#fff,#f2f2f2);
+      position:relative;
+      overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+      user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      touch-action: manipulation;
+    }
+    .hint{
+      position:absolute; top:14px; left:14px; right:14px;
+      display:flex; justify-content:space-between; gap:10px;
+      pointer-events:none;
+    }
+    .cue{ font-size:24px; font-weight:1000; letter-spacing:-0.3px; }
+    .desc{ font-size:13px; color:var(--muted); font-weight:650; }
+
+    /* stick-person */
+    .wrap{
+      width:240px; height:240px;
+      display:flex; align-items:center; justify-content:center;
+      transform-origin:center;
+      transition:transform 260ms ease;
+      filter:drop-shadow(0 10px 18px rgba(0,0,0,.18));
+    }
+    .person{ position:relative; width:120px; height:180px; }
+    .head{ position:absolute; top:0; left:50%; width:56px; height:56px; transform:translateX(-50%); border-radius:999px; background:#111; }
+    .torso{ position:absolute; top:54px; left:50%; width:82px; height:96px; transform:translateX(-50%); border-radius:44px; background:#111; }
+    .arm{ position:absolute; top:68px; width:24px; height:80px; border-radius:20px; background:#111; transform-origin:top center; }
+    .arm.left{ left:6px; transform:rotate(10deg); }
+    .arm.right{ right:6px; transform:rotate(-10deg); }
+    .leg{ position:absolute; top:138px; width:30px; height:90px; border-radius:22px; background:#111; }
+    .leg.left{ left:30px; } .leg.right{ right:30px; }
+
+    .small{ transform:scale(0.72); }
+    .big{ transform:scale(1.08); }
+
+    .handup .arm.right{
+      top:42px; height:104px;
+      transform:rotate(-135deg);
+    }
+
+    .good{
+      display:none;
+      text-align:center;
+      font-size:46px;
+      font-weight:1000;
+      letter-spacing:-1px;
+    }
+    .good small{
+      display:block;
+      margin-top:6px;
+      font-size:14px;
+      color:var(--muted);
+      font-weight:800;
+    }
+
+    /* start overlay */
+    .overlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(245,245,245,.92);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding:18px;
+      z-index:9999;
+      touch-action: manipulation;
+    }
+    .card{
+      width:min(520px,100%);
+      background:#fff;
+      border:1px solid #eee;
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 12px 34px rgba(0,0,0,.12);
+      text-align:center;
+    }
+    .card h2{ margin:0 0 8px; font-size:16px; font-weight:950; }
+    .card p{ margin:0 0 12px; font-size:13px; color:var(--muted); font-weight:650; line-height:1.45; }
+    .startBtn{ width:100%; padding:14px 16px; border-radius:14px; font-size:16px; }
+    input[type="range"]{ width:220px; }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <h1>펜싱 랜덤 드릴</h1>
+
+    <div class="panel">
+      <div class="row">
+        <div class="badge">이번 라운드 이동: <span id="planMoves" class="k">-</span>회 (랜덤 6~8)</div>
+        <div class="badge">
+          속도: <span id="spdLabel" class="k">1.2</span>s
+          <input id="speed" type="range" min="0.6" max="2.0" step="0.1" value="1.2">
+        </div>
+        <div class="badge">소리: <span id="soundLabel" class="k">OFF</span> (찌르기에서만)</div>
+      </div>
+
+      <div class="controls">
+        <button id="pauseBtn" class="secondary" disabled>Pause</button>
+        <button id="resumeBtn" disabled>Resume</button>
+        <button id="nextRoundBtn" class="secondary" disabled>새 라운드(즉시)</button>
+      </div>
+
+      <div class="sub">
+        ※ 시작은 최초 1번 터치가 필요해요(iOS 소리 정책). 이후 라운드는 자동 반복됩니다.
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="hint">
+        <div>
+          <div class="cue" id="cue">Ready</div>
+          <div class="desc" id="desc">시작 전</div>
+        </div>
+        <div class="desc">
+          이번 라운드: <span id="roundMoves">0</span> / 총 누적: <span id="totalMoves">0</span> / 라운드: <span id="roundNo">1</span>
+        </div>
+      </div>
+
+      <div class="wrap small" id="wrap">
+        <div class="person" id="person">
+          <div class="head"></div>
+          <div class="torso"></div>
+          <div class="arm left"></div>
+          <div class="arm right"></div>
+          <div class="leg left"></div>
+          <div class="leg right"></div>
+        </div>
+      </div>
+
+      <div class="good" id="good">
+        GOOD!
+        <small>(성공)</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h2>시작하기</h2>
+      <p>
+        아래 버튼을 누르거나 화면 아무데나 <b>한 번 탭</b>해도 시작돼요.<br>
+        (소리 활성화 때문에 최초 1회 사용자 터치가 필요합니다)
+      </p>
+      <button class="startBtn" id="startBtn">Start</button>
+      <p class="sub" style="margin-top:10px;">
+        이동은 <b>마르쉐/투마르쉐/롱빼/투롱빼</b> 랜덤(6~8회) → 마지막 <b>앙가르드+찌르기</b><br>
+        <b>삐 소리는 찌르기에서만</b> 납니다.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // ---- Cues ----
+    const MOVE_KEYS = ["MARCHE","TMARCHE","LONGUE","TLONGUE"];
+    const CUE = {
+      MARCHE:  { label:"마르쉐",   desc:"작아짐(뒤로감 느낌) → 마르쉐",   dir:"BACK", visual:"small", inc:true },
+      TMARCHE: { label:"투마르쉐", desc:"작아짐(뒤로감 느낌) → 투마르쉐", dir:"BACK", visual:"small", inc:true },
+      LONGUE:  { label:"롱빼",     desc:"커짐(앞으로 나옴 느낌) → 롱빼",   dir:"FWD",  visual:"big",   inc:true },
+      TLONGUE: { label:"투롱빼",   desc:"커짐(앞으로 나옴 느낌) → 투롱빼", dir:"FWD",  visual:"big",   inc:true },
+      THRUST:  { label:"앙가르드 + 찌르기", desc:"손들면 앙가르드 + 찌르기", dir:"NONE", visual:"handup", inc:false },
+      DONE:    { label:"GOOD!",   desc:"라운드 종료", dir:"NONE", visual:"done", inc:false },
+    };
+
+    // ---- DOM ----
+    const overlay = document.getElementById("overlay");
+    const startBtn = document.getElementById("startBtn");
+    const stage = document.getElementById("stage");
+
+    const pauseBtn = document.getElementById("pauseBtn");
+    const resumeBtn = document.getElementById("resumeBtn");
+    const nextRoundBtn = document.getElementById("nextRoundBtn");
+
+    const speed = document.getElementById("speed");
+    const spdLabel = document.getElementById("spdLabel");
+    const soundLabel = document.getElementById("soundLabel");
+
+    const cueEl = document.getElementById("cue");
+    const descEl = document.getElementById("desc");
+
+    const wrap = document.getElementById("wrap");
+    const person = document.getElementById("person");
+    const good = document.getElementById("good");
+
+    const planMovesEl = document.getElementById("planMoves");
+    const roundMovesEl = document.getElementById("roundMoves");
+    const totalMovesEl = document.getElementById("totalMoves");
+    const roundNoEl = document.getElementById("roundNo");
+
+    // ---- State ----
+    let plan = [];
+    let idx = 0;
+    let roundMoves = 0;
+    let totalMoves = 0;
+    let roundNo = 1;
+
+    let timer = null;
+    let started = false;
+    let paused = false;
+
+    // ---- Audio (thrust only) ----
+    let audioCtx = null;
+    let soundOn = false;
+
+    function ensureAudio(){
+      if(audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    function setSound(on){
+      soundOn = on;
+      soundLabel.textContent = on ? "ON" : "OFF";
+    }
+    function thrustBeep(){
+      if(!soundOn || !audioCtx) return;
+      if(audioCtx.state === "suspended"){ audioCtx.resume().catch(()=>{}); }
+      const now = audioCtx.currentTime;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 1100;
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }
+
+    // ---- Helpers ----
+    function randInt(min, maxInclusive){
+      return Math.floor(Math.random() * (maxInclusive - min + 1)) + min;
+    }
+
+    function applyVisual(key){
+      wrap.classList.remove("small","big");
+      person.classList.remove("handup");
+      good.style.display = "none";
+      wrap.style.display = "flex";
+
+      const v = CUE[key].visual;
+      if(v === "small"){ wrap.classList.add("small"); return; }
+      if(v === "big"){ wrap.classList.add("big"); return; }
+      if(v === "handup"){ wrap.classList.add("big"); person.classList.add("handup"); return; }
+      if(v === "done"){ wrap.style.display = "none"; good.style.display = "block"; return; }
+    }
+
+    // constraints:
+    // - moves: 6~8
+    // - balance: |back - fwd| <= 2
+    // - avoid 3 same exact in a row
+    // - avoid 4 same direction in a row
+    function generateMovePlan(){
+      const total = randInt(6,8);
+      let seq = [];
+      let back = 0, fwd = 0;
+
+      function last(n){ return seq[seq.length - n]; }
+      function lastDir(n){
+        const k = last(n);
+        return k ? CUE[k].dir : null;
+      }
+
+      for(let i=0;i<total;i++){
+        let options = [...MOVE_KEYS];
+
+        // 3 same exact in a row
+        if(last(1) && last(2) && last(1) === last(2)){
+          options = options.filter(x => x !== last(1));
+        }
+
+        // balance
+        const diff = back - fwd;
+        if(diff >= 2) options = options.filter(x => CUE[x].dir !== "BACK");
+        if(diff <= -2) options = options.filter(x => CUE[x].dir !== "FWD");
+
+        // 4 same direction in a row
+        if(seq.length >= 3){
+          const d1 = lastDir(1), d2 = lastDir(2), d3 = lastDir(3);
+          if(d1 && d1 === d2 && d2 === d3){
+            options = options.filter(x => CUE[x].dir !== d1);
+          }
+        }
+
+        // fallback: relax balance only (keep repetition guards)
+        if(options.length === 0){
+          options = [...MOVE_KEYS];
+          if(last(1) && last(2) && last(1) === last(2)){
+            options = options.filter(x => x !== last(1));
+          }
+          if(seq.length >= 3){
+            const d1 = lastDir(1), d2 = lastDir(2), d3 = lastDir(3);
+            if(d1 && d1 === d2 && d2 === d3){
+              options = options.filter(x => CUE[x].dir !== d1);
+            }
+          }
+        }
+
+        const pick = options[randInt(0, options.length - 1)];
+        seq.push(pick);
+        if(CUE[pick].dir === "BACK") back++; else fwd++;
+      }
+
+      planMovesEl.textContent = total;
+      return [...seq, "THRUST", "DONE"];
+    }
+
+    function rebuildRound(){
+      plan = generateMovePlan();
+      idx = 0;
+      roundMoves = 0;
+      roundMovesEl.textContent = roundMoves;
+      cueEl.textContent = "Ready";
+      descEl.textContent = "진행 중…";
+      applyVisual("MARCHE"); // 기본 자세 느낌으로 small
+    }
+
+    function stopTimer(){
+      if(timer){ clearInterval(timer); timer = null; }
+    }
+
+    function tick(){
+      const key = plan[idx];
+      const meta = CUE[key];
+
+      cueEl.textContent = meta.label;
+      descEl.textContent = meta.desc;
+      applyVisual(key);
+
+      // thrust-only sound
+      if(key === "THRUST") thrustBeep();
+
+      if(meta.inc){
+        roundMoves++;
+        totalMoves++;
+        roundMovesEl.textContent = roundMoves;
+        totalMovesEl.textContent = totalMoves;
+      }
+
+      idx++;
+
+      // end of plan -> auto next round
+      if(idx >= plan.length){
+        stopTimer();
+        const intervalMs = Math.round(parseFloat(speed.value) * 1000);
+        const restMs = Math.max(650, Math.floor(intervalMs * 1.1));
+        setTimeout(() => {
+          if(!started || paused) return;
+          roundNo++;
+          roundNoEl.textContent = roundNo;
+          rebuildRound();
+          startLoop(true);
+        }, restMs);
+      }
+    }
+
+    function startLoop(immediate){
+      if(paused) return;
+      if(timer) return;
+      const intervalMs = Math.round(parseFloat(speed.value) * 1000);
+      if(immediate) tick();
+      timer = setInterval(() => {
+        if(paused) return;
+        if(idx < plan.length) tick();
+      }, intervalMs);
+    }
+
+    function pause(){
+      paused = true;
+      stopTimer();
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      descEl.textContent = "일시정지됨 (Resume 누르면 재개)";
+    }
+
+    function resume(){
+      paused = false;
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      descEl.textContent = "진행 중…";
+      startLoop(true);
+    }
+
+    function startNow(){
+      if(started) return;
+      started = true;
+      overlay.style.display = "none";
+
+      // enable audio
+      ensureAudio();
+      setSound(true);
+
+      pauseBtn.disabled = false;
+      nextRoundBtn.disabled = false;
+
+      rebuildRound();
+      startLoop(true);
+    }
+
+    // robust start: button + overlay tap
+    startBtn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startNow(); }, {passive:false});
+    startBtn.addEventListener("click", startNow);
+    overlay.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startNow(); }, {passive:false});
+    overlay.addEventListener("click", startNow);
+
+    pauseBtn.addEventListener("click", pause);
+    resumeBtn.addEventListener("click", resume);
+    nextRoundBtn.addEventListener("click", () => {
+      stopTimer();
+      rebuildRound();
+      startLoop(true);
+    });
+
+    speed.addEventListener("input", () => {
+      spdLabel.textContent = parseFloat(speed.value).toFixed(1);
+      if(timer && !paused){
+        stopTimer();
+        startLoop(false);
+      }
+    });
+
+    // init
+    (function init(){
+      spdLabel.textContent = parseFloat(speed.value).toFixed(1);
+      setSound(false);
+      cueEl.textContent = "Ready";
+      descEl.textContent = "시작 전";
+      roundMovesEl.textContent = "0";
+      totalMovesEl.textContent = "0";
+      roundNoEl.textContent = "1";
+    })();
+  </script>
+</body>
+</html>
