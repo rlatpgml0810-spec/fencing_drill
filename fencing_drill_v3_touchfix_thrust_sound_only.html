@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1, user-scalable=no" />
+  <title>펜싱 랜덤 합맞추기 드릴</title>
+  <style>
+    :root{ --bg:#f6f6f6; --fg:#111; --muted:#666; --card:#fff; }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial,sans-serif;
+      background:var(--bg); color:var(--fg); display:flex; justify-content:center; padding:18px;
+      touch-action: manipulation;
+    }
+    .app{
+      width:min(720px, 100%); background:var(--card); border-radius:16px;
+      padding:18px 18px 14px; box-shadow:0 8px 30px rgba(0,0,0,.08);
+      position:relative;
+    }
+    h1{ font-size:18px; margin:0 0 8px; }
+    .panel{ background:#fafafa; border:1px solid #eee; border-radius:14px; padding:12px; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0 8px; }
+    button{
+      border:0; padding:12px 16px; border-radius:12px; cursor:pointer;
+      background:#111; color:#fff; font-weight:900; font-size:15px;
+      touch-action: manipulation;
+    }
+    button.secondary{ background:#e9e9e9; color:#111; }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+    .sub{ font-size:13px; color:var(--muted); font-weight:650; }
+    .badge{
+      display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px;
+      border:1px solid #eee; background:#fbfbfb; font-size:13px; font-weight:700; color:var(--muted);
+    }
+    .k{ color:#111; }
+    input[type="range"]{ width:200px; }
+
+    .stage{
+      margin-top:12px;
+      position:relative; height:360px; border-radius:18px;
+      background:linear-gradient(#ffffff, #f2f2f2); border:1px solid #eee;
+      overflow:hidden; display:flex; align-items:center; justify-content:center;
+      user-select:none; -webkit-tap-highlight-color:transparent;
+      touch-action: manipulation;
+    }
+    .hint{
+      position:absolute; top:14px; left:14px; right:14px;
+      display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+      pointer-events:none;
+    }
+    .cue{ font-size:22px; font-weight:1000; letter-spacing:-0.2px; }
+
+    /* person */
+    .personWrap{
+      width:220px; height:220px; display:flex; align-items:center; justify-content:center;
+      transform-origin:center; transition:transform 260ms ease;
+      filter:drop-shadow(0 10px 18px rgba(0,0,0,.18));
+    }
+    .person{ position:relative; width:110px; height:170px; }
+    .head{ position:absolute; top:0; left:50%; width:54px; height:54px; transform:translateX(-50%); border-radius:999px; background:#111; }
+    .torso{ position:absolute; top:52px; left:50%; width:78px; height:92px; transform:translateX(-50%); border-radius:40px; background:#111; }
+    .arm{ position:absolute; top:64px; width:24px; height:78px; border-radius:20px; background:#111; transform-origin:top center; }
+    .arm.left{ left:6px; transform:rotate(8deg); }
+    .arm.right{ right:6px; transform:rotate(-8deg); }
+    .leg{ position:absolute; top:132px; width:28px; height:86px; border-radius:22px; background:#111; }
+    .leg.left{ left:28px; } .leg.right{ right:28px; }
+
+    .small{ transform:scale(0.72); }
+    .big{ transform:scale(1.06); }
+    .handup .arm.right{ top:38px; height:96px; transform:rotate(-135deg); }
+    .handup .arm.left{ transform:rotate(10deg); }
+
+    .success{
+      font-size:44px; font-weight:1000; letter-spacing:-1px; text-align:center;
+    }
+    .success small{ display:block; margin-top:6px; font-size:14px; color:var(--muted); font-weight:800; }
+
+    .footer{
+      margin-top:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    }
+
+    /* start overlay */
+    .overlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(245,245,245,.92);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding:18px;
+      z-index:9999;
+      touch-action: manipulation;
+    }
+    .overlayCard{
+      background:#fff;
+      border:1px solid #eee;
+      border-radius:18px;
+      padding:16px 16px 14px;
+      box-shadow:0 12px 34px rgba(0,0,0,.12);
+      width:min(520px, 100%);
+      text-align:center;
+    }
+    .overlayCard h2{
+      margin:0 0 8px;
+      font-size:16px;
+      font-weight:950;
+      letter-spacing:-0.2px;
+    }
+    .overlayCard p{
+      margin:0 0 12px;
+      font-size:13px;
+      color:var(--muted);
+      font-weight:650;
+      line-height:1.45;
+    }
+    .overlayCard .bigStart{
+      width:100%;
+      padding:14px 16px;
+      border-radius:14px;
+      font-size:16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>펜싱 랜덤 합맞추기 드릴</h1>
+
+    <div class="panel">
+      <div class="row">
+        <div class="badge">이번 라운드 이동: <span id="totalMoves" class="k">-</span>회 (랜덤 6~8)</div>
+        <div class="badge">속도: <span id="speedLabel" class="k">1.2</span>s
+          <input id="speed" type="range" min="0.6" max="2.0" step="0.1" value="1.2" />
+        </div>
+        <div class="badge">소리: <span id="soundLabel" class="k">OFF</span></div>
+      </div>
+      <div class="controls">
+        <button id="pauseBtn" class="secondary" disabled>Pause</button>
+        <button id="resumeBtn" disabled>Resume</button>
+        <button id="regenBtn" class="secondary" disabled>새 라운드(즉시)</button>
+      </div>
+      <div class="sub">※ 소리는 <b>찌르기(앙가르드+찌르기)에서만</b> 납니다. 라운드는 자동 반복.</div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="hint">
+        <div>
+          <div class="cue" id="cue">Ready</div>
+          <div class="sub" id="sub">시작 전</div>
+        </div>
+        <div class="sub" id="stepInfo">이번 라운드: 0</div>
+      </div>
+
+      <div class="personWrap small" id="personWrap">
+        <div class="person" id="person">
+          <div class="head"></div>
+          <div class="torso"></div>
+          <div class="arm left"></div>
+          <div class="arm right"></div>
+          <div class="leg left"></div>
+          <div class="leg right"></div>
+        </div>
+      </div>
+
+      <div class="success" id="success" style="display:none;">
+        GOOD!
+        <small>(성공)</small>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="badge">이번 라운드 이동 누적: <span id="doneMoves" class="k">0</span></div>
+      <div class="badge">총 이동 누적: <span id="totalDoneMoves" class="k">0</span></div>
+      <div class="badge">라운드: <span id="roundCount" class="k">1</span></div>
+      <div class="badge">현재 큐: <span id="currentCue" class="k">-</span></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="overlayCard">
+      <h2>터치/클릭으로 시작</h2>
+      <p>
+        아래 버튼을 누르거나, 화면 아무 데나 <b>한 번 탭</b>해도 시작돼요.<br/>
+        (iOS에서 소리/타이머가 정상 동작하려면 최초 1회 사용자 터치가 필요해요)
+      </p>
+      <button id="startBtn" class="bigStart">Start</button>
+      <p class="sub" style="margin-top:10px;">
+        이동은 <b>마르쉐/투마르쉐/롱빼/투롱빼</b>가 섞여 나오고,<br/>
+        마지막에 <b>앙가르드+찌르기</b>가 뜰 때만 삐! 소리가 납니다.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const CUES = {
+      MARCHE:   { label: "마르쉐",    sub: "작아짐 → 마르쉐",    visual: "small",  dir: "BACK", incMove: true },
+      TMARCHE:  { label: "투마르쉐",  sub: "작아짐 → 투마르쉐",  visual: "small",  dir: "BACK", incMove: true },
+      LONGUE:   { label: "롱빼",      sub: "커짐 → 롱빼",        visual: "big",    dir: "FWD",  incMove: true },
+      TLONGUE:  { label: "투롱빼",    sub: "커짐 → 투롱빼",      visual: "big",    dir: "FWD",  incMove: true },
+      SALUTE:   { label: "앙가르드 + 찌르기", sub: "손들면 앙가르드 + 찌르기", visual: "handup", dir: "NONE", incMove: false },
+      DONE:     { label: "GOOD!",     sub: "라운드 종료",        visual: "done",   dir: "NONE", incMove: false }
+    };
+
+    // DOM
+    const speed = document.getElementById("speed");
+    const speedLabel = document.getElementById("speedLabel");
+    const soundLabel = document.getElementById("soundLabel");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const resumeBtn = document.getElementById("resumeBtn");
+    const regenBtn = document.getElementById("regenBtn");
+    const startBtn = document.getElementById("startBtn");
+    const overlay = document.getElementById("overlay");
+
+    const cueEl = document.getElementById("cue");
+    const subEl = document.getElementById("sub");
+    const stepInfo = document.getElementById("stepInfo");
+
+    const personWrap = document.getElementById("personWrap");
+    const person = document.getElementById("person");
+    const success = document.getElementById("success");
+
+    const totalMovesEl = document.getElementById("totalMoves");
+    const doneMovesEl = document.getElementById("doneMoves");
+    const totalDoneMovesEl = document.getElementById("totalDoneMoves");
+    const roundCountEl = document.getElementById("roundCount");
+    const currentCueEl = document.getElementById("currentCue");
+
+    // state
+    let plan = [];
+    let idx = 0;
+    let doneMoves = 0;
+    let totalDoneMoves = 0;
+    let round = 1;
+
+    let timer = null;
+    let paused = false;
+    let started = false;
+
+    // audio: thrust-only beep
+    let audioCtx = null;
+    let soundEnabled = false;
+
+    function randInt(min, maxInclusive){ return Math.floor(Math.random()*(maxInclusive-min+1))+min; }
+
+    function ensureAudio(){
+      if(audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    function setSoundUI(on){
+      soundEnabled = on;
+      soundLabel.textContent = on ? "ON" : "OFF";
+    }
+
+    function thrustBeep(){
+      if(!soundEnabled || !audioCtx) return;
+      if(audioCtx.state === "suspended"){ audioCtx.resume().catch(()=>{}); }
+
+      const freqHz = 1100;
+      const durSec = 0.10;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freqHz;
+
+      const now = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durSec);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + durSec + 0.02);
+    }
+
+    // sequence generation: 6~8 moves, balance dirs, avoid 4 same dir, avoid 3 same exact
+    const MOVE_KEYS = ["MARCHE","TMARCHE","LONGUE","TLONGUE"];
+
+    function generateMoves(){
+      const total = randInt(6, 8);
+      let seq = [];
+      let backCount = 0, fwdCount = 0;
+
+      function lastDir(n=1){
+        const k = seq[seq.length-n];
+        return k ? CUES[k].dir : null;
+      }
+
+      for(let i=0;i<total;i++){
+        const last1 = seq[i-1];
+        const last2 = seq[i-2];
+        let options = [...MOVE_KEYS];
+
+        // 3 same exact in a row 방지
+        if(last1 && last2 && last1 === last2){
+          options = options.filter(x => x !== last1);
+        }
+
+        // 방향 밸런스(차이 2 이하)
+        const diff = backCount - fwdCount;
+        if(diff >= 2) options = options.filter(x => CUES[x].dir !== "BACK");
+        if(diff <= -2) options = options.filter(x => CUES[x].dir !== "FWD");
+
+        // 같은 방향 4연속 방지
+        if(seq.length >= 3){
+          const d1 = lastDir(1), d2 = lastDir(2), d3 = lastDir(3);
+          if(d1 && d1 === d2 && d2 === d3){
+            options = options.filter(x => CUES[x].dir !== d1);
+          }
+        }
+
+        // fallback
+        if(options.length === 0){
+          options = [...MOVE_KEYS];
+          if(last1 && last2 && last1 === last2){
+            options = options.filter(x => x !== last1);
+          }
+          if(seq.length >= 3){
+            const d1 = lastDir(1), d2 = lastDir(2), d3 = lastDir(3);
+            if(d1 && d1 === d2 && d2 === d3){
+              options = options.filter(x => CUES[x].dir !== d1);
+            }
+          }
+        }
+
+        const pick = options[randInt(0, options.length-1)];
+        seq.push(pick);
+        if(CUES[pick].dir === "BACK") backCount++; else fwdCount++;
+      }
+
+      totalMovesEl.textContent = total;
+      return seq;
+    }
+
+    function applyVisual(key){
+      personWrap.classList.remove("small","big");
+      person.classList.remove("handup");
+      success.style.display = "none";
+      personWrap.style.display = "flex";
+
+      if(key === "ready"){ personWrap.classList.add("small"); return; }
+
+      const v = CUES[key].visual;
+      if(v === "small"){ personWrap.classList.add("small"); return; }
+      if(v === "big"){ personWrap.classList.add("big"); return; }
+      if(v === "handup"){ personWrap.classList.add("big"); person.classList.add("handup"); return; }
+      if(v === "done"){ personWrap.style.display="none"; success.style.display="block"; return; }
+    }
+
+    function buildPlan(){
+      const moves = generateMoves();
+      plan = [...moves, "SALUTE", "DONE"];
+      idx = 0;
+      doneMoves = 0;
+      doneMovesEl.textContent = doneMoves;
+      stepInfo.textContent = `이번 라운드: ${doneMoves}`;
+      currentCueEl.textContent = "-";
+      cueEl.textContent = "Ready";
+      subEl.textContent = "진행 중…";
+      applyVisual("ready");
+    }
+
+    function stopTimer(){
+      if(timer){ clearInterval(timer); timer = null; }
+    }
+
+    function tick(){
+      const key = plan[idx];
+      const meta = CUES[key];
+
+      cueEl.textContent = meta.label;
+      subEl.textContent = meta.sub;
+      currentCueEl.textContent = meta.label;
+      applyVisual(key);
+
+      // ✅ 소리는 찌르기에서만!
+      if(key === "SALUTE"){
+        thrustBeep();
+      }
+
+      if(meta.incMove){
+        doneMoves++;
+        totalDoneMoves++;
+        doneMovesEl.textContent = doneMoves;
+        totalDoneMovesEl.textContent = totalDoneMoves;
+        stepInfo.textContent = `이번 라운드: ${doneMoves}`;
+      }
+
+      idx++;
+
+      if(idx >= plan.length){
+        stopTimer();
+        const intervalMs = Math.round(parseFloat(speed.value) * 1000);
+        const restMs = Math.max(650, Math.floor(intervalMs * 1.1));
+        setTimeout(() => {
+          if(paused || !started) return;
+          round += 1;
+          roundCountEl.textContent = round;
+          buildPlan();
+          startTimer(true);
+        }, restMs);
+      }
+    }
+
+    function startTimer(immediate){
+      if(paused) return;
+      if(timer) return;
+      const intervalMs = Math.round(parseFloat(speed.value) * 1000);
+      if(immediate) tick();
+      timer = setInterval(() => {
+        if(paused) return;
+        if(idx < plan.length) tick();
+      }, intervalMs);
+    }
+
+    function pause(){
+      paused = true;
+      stopTimer();
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      subEl.textContent = "일시정지됨 (Resume 누르면 재개)";
+    }
+
+    function resume(){
+      paused = false;
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      subEl.textContent = "진행 중…";
+      startTimer(true);
+    }
+
+    function startNow(){
+      if(started) return;
+      started = true;
+      overlay.style.display = "none";
+
+      // user gesture 기반으로 audio 활성화
+      ensureAudio();
+      setSoundUI(true);
+
+      pauseBtn.disabled = false;
+      regenBtn.disabled = false;
+
+      buildPlan();
+      startTimer(true);
+    }
+
+    // ---- touch/click reliability: 버튼 + 화면 아무데나 탭 ----
+    startBtn.addEventListener("click", startNow, {passive:true});
+    startBtn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startNow(); }, {passive:false});
+    overlay.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startNow(); }, {passive:false});
+    overlay.addEventListener("click", startNow, {passive:true});
+
+    pauseBtn.addEventListener("click", pause);
+    resumeBtn.addEventListener("click", resume);
+    regenBtn.addEventListener("click", () => {
+      stopTimer();
+      buildPlan();
+      startTimer(true);
+    });
+
+    speed.addEventListener("input", () => {
+      speedLabel.textContent = parseFloat(speed.value).toFixed(1);
+      if(timer && !paused){
+        stopTimer();
+        startTimer(false);
+      }
+    });
+
+    // init
+    (function init(){
+      speedLabel.textContent = parseFloat(speed.value).toFixed(1);
+      setSoundUI(false);
+      cueEl.textContent = "Ready";
+      subEl.textContent = "시작 전";
+      stepInfo.textContent = "이번 라운드: 0";
+      applyVisual("ready");
+    })();
+  </script>
+</body>
+</html>
